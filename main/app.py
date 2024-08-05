@@ -86,13 +86,14 @@ def update_registration_status(user_id, status):
         close_connection(connection)
 
 def isUserBorrowed(user_id):
+    print('isUserBorrowed section')
     connection = create_connection()
     if connection is None:
         print("Failed to create database connection.")
         return
     cursor = connection.cursor()
     try:
-        cursor.execute("SELECT * FROM borrowed_keys WHERE user_id = %s ", (user_id))
+        cursor.execute("SELECT * FROM borrowed_keys WHERE user_id = %s", (user_id,))
         user = cursor.fetchone()
         return user
     except Error as e:
@@ -150,6 +151,7 @@ async def register_callback(update: Update, context: CallbackContext):
 
 async def handle_registration(update: Update, context: CallbackContext):
     _, id_register, validasi = update.callback_query.data.split("_")
+    print(id_register)
     
     if validasi == "approve":
         update_registration_status(id_register, True)
@@ -171,7 +173,7 @@ async def notify_callback(update: Update , context: CallbackContext):
     await context.bot.send_message(chat_id='5168019992', text=f"new users need to be approved for teh access:\nUser: @{query.from_user.username}\nPlease approve or reject this request.", reply_markup=reply_markup)
 
 async def handle_notify(update: Update, context: CallbackContext):
-    _, __, id_register, validasi = update.callback_query.data.split("_")
+    _, __, validasi , id_register = update.callback_query.data.split("_")
 
     if validasi == "approve":
         update_registration_status(id_register, True)
@@ -187,15 +189,21 @@ async def forward_key_request(update: Update, context: CallbackContext):
     user_id = update.message.from_user.id
     username = update.message.from_user.username
     key_name = update.message.text
+    validasi = isKeysOdcAvailable(key_name)
 
-    
-    keyboard = [
+    if validasi is not None and validasi['is_key_available'] == 1:
+        keyboard = [
         [InlineKeyboardButton("Approve", callback_data=f"borrow_approve_{user_id}_{key_name}")],
         [InlineKeyboardButton("Reject", callback_data=f"borrow_reject_{user_id}_{key_name}")]
-    ]
+        ]
 
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    await context.bot.send_message(chat_id='5168019992', text=f"Request peminjaman kunci:\nUser: @{username}\nKunci: {key_name}\nPlease approve or reject this request.", reply_markup=reply_markup)
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await context.bot.send_message(chat_id='5168019992', text=f"Request peminjaman kunci:\nUser: @{username}\nKunci: {key_name}\nPlease approve or reject this request.", reply_markup=reply_markup)
+    if validasi is not None and validasi['is_key_available'] == 0:
+        await context.bot.send_message(chat_id=user_id, text=f"Permintaan peminjaman kunci '{key_name}' telah digunakan orang lain")
+    else: 
+        await context.bot.send_message(chat_id=user_id, text=f"Kunci dengan code '{key_name}' tidak ditemukan")
+
 
 async def handle_borrow_approval(update: Update, context: CallbackContext):
     query = update.callback_query
@@ -204,6 +212,8 @@ async def handle_borrow_approval(update: Update, context: CallbackContext):
 
     if action == "approve":
         await context.bot.send_message(chat_id=user_id, text=f"Permintaan peminjaman kunci '{key_name}' Anda telah disetujui.")
+        updateodc()
+        insertborrowkeys()
     else:
         await context.bot.send_message(chat_id=user_id, text=f"Permintaan peminjaman kunci '{key_name}' Anda telah ditolak.")
 
