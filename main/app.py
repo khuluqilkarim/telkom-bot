@@ -14,7 +14,6 @@ def create_connection():
     connection = None
     try:
         connection = mysql.connector.connect(**db_config)
-        print("Database connection successful")
     except Error as e:
         print(f"Error: {e}")
     return connection
@@ -22,7 +21,6 @@ def create_connection():
 def close_connection(connection):
     if connection.is_connected():
         connection.close()
-        print("Database connection closed")
 
 def get_user_by_id(user_id):
     connection = create_connection()
@@ -47,7 +45,7 @@ def isKeysOdcAvailable(odc_name):
         return None
     cursor = connection.cursor(dictionary=True)
     try:
-        cursor.execute("SELECT * FROM odc_info WHERE odc_name = %s", (odc_name,))
+        cursor.execute("SELECT * FROM odc_info WHERE Nama = %s", (odc_name,))
         user = cursor.fetchone()
         return user
     except Error as e:
@@ -82,6 +80,24 @@ def update_registration_status(user_id, status):
         print(f"User {user_id} registration status updated to {status}")
     except Error as e:
         print(f"Error: {e}")
+    finally:
+        close_connection(connection)
+
+def borrow_key(user_id, key_name, key_id):
+    connection = create_connection()
+    if connection is None:
+        print("Failed to create database connection.")
+        return False
+    cursor = connection.cursor()
+    try:
+        cursor.execute("UPDATE odc_info SET is_key_available = 0 WHERE Nama = %s", (key_name,))
+        cursor.execute("INSERT INTO borrowed_keys (id, key_id, user_id, time_borrowed, keys_returned, is_return) VALUES (NULL, %s, %s, current_timestamp(), NULL, '0')", (key_id, user_id))
+        connection.commit()
+        print(f"User {user_id} borrowed key {key_name} successfully")
+        return True
+    except Error as e:
+        print(f"Error: {e}")
+        return False
     finally:
         close_connection(connection)
 
@@ -201,7 +217,7 @@ async def forward_key_request(update: Update, context: CallbackContext):
         await context.bot.send_message(chat_id='5168019992', text=f"Request peminjaman kunci:\nUser: @{username}\nKunci: {key_name}\nPlease approve or reject this request.", reply_markup=reply_markup)
     if validasi is not None and validasi['is_key_available'] == 0:
         await context.bot.send_message(chat_id=user_id, text=f"Permintaan peminjaman kunci '{key_name}' telah digunakan orang lain")
-    else: 
+    if validasi is None: 
         await context.bot.send_message(chat_id=user_id, text=f"Kunci dengan code '{key_name}' tidak ditemukan")
 
 
@@ -209,13 +225,13 @@ async def handle_borrow_approval(update: Update, context: CallbackContext):
     query = update.callback_query
     await query.answer()
     _, action, user_id, key_name = query.data.split("_")
+    dataODC = isKeysOdcAvailable(key_name)
 
     if action == "approve":
-        await context.bot.send_message(chat_id=user_id, text=f"Permintaan peminjaman kunci '{key_name}' Anda telah disetujui.")
-        updateodc()
-        insertborrowkeys()
+        borrow_key(user_id, key_name,dataODC['Data_ID'])
+        await context.bot.send_message(chat_id=user_id, text=f"*Keterangan*:\n\nStatus Peminjaman: *Approve*\nODC Name: *{key_name}*\nLocation: [Google Maps](https://www.google.com/maps?q={dataODC['Latitude']},{dataODC['Longitude']})\n\nHarap ambil kunci anda pada Team Leader Region",parse_mode='markdown')
     else:
-        await context.bot.send_message(chat_id=user_id, text=f"Permintaan peminjaman kunci '{key_name}' Anda telah ditolak.")
+        await context.bot.send_message(chat_id=user_id, text=f"Permintaan peminjaman kunci {key_name} Anda telah ditolak.")
 
 
 async def returnKeys_callback(update: Update, context: CallbackContext):
