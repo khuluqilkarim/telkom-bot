@@ -38,14 +38,14 @@ def get_user_by_id(user_id):
     finally:
         close_connection(connection)
 
-def isKeysOdcAvailable(odc_name):
+def isKeysOdcAvailable(odc_name='',data_id=''):
     connection = create_connection()
     if connection is None:
         print("Failed to create database connection.")
         return None
     cursor = connection.cursor(dictionary=True)
     try:
-        cursor.execute("SELECT * FROM odc_info WHERE Nama = %s", (odc_name,))
+        cursor.execute("SELECT * FROM odc_info WHERE Nama = %s OR Data_ID = %s", (odc_name,data_id))
         user = cursor.fetchone()
         return user
     except Error as e:
@@ -109,7 +109,7 @@ def isUserBorrowed(user_id):
         return
     cursor = connection.cursor()
     try:
-        cursor.execute("SELECT * FROM borrowed_keys WHERE user_id = %s", (user_id,))
+        cursor.execute("SELECT * FROM borrowed_keys WHERE user_id = %s and is_return = 0", (user_id,))
         user = cursor.fetchone()
         return user
     except Error as e:
@@ -123,11 +123,15 @@ async def start(update: Update, context: CallbackContext):
     username = update.message.from_user.username
     data = get_user_by_id(user_id)
     isUserborrow = isUserBorrowed(user_id)
-    print(isUserborrow)
+    print(f"status peminjaman kunci user : {isUserborrow[-1]}")
     print(f"id {user_id} melakukan start")
     print(data) 
 
-    if data is not None and data['is_registered'] == 1:
+    if isUserborrow[-1] == 0:
+        keyboard = [
+        [InlineKeyboardButton("Kembalikan Kunci", callback_data='return_keys')],
+        ]
+    elif data is not None and data['is_registered'] == 1:
         keyboard = [
         [InlineKeyboardButton("Ketersedian Kunci", callback_data='show_keys')],
         [InlineKeyboardButton("Peminjaman Kunci", callback_data='keys_borrowed')],
@@ -135,10 +139,6 @@ async def start(update: Update, context: CallbackContext):
     elif data is not None and data['is_registered'] == 0:
         keyboard = [
         [InlineKeyboardButton("Notify Team Lead", callback_data='notify')],
-        ]
-    elif data is not None and isUserborrow['is_return'] != 1:
-        keyboard = [
-        [InlineKeyboardButton("Kembalikan Kunci", callback_data='return_keys')],
         ]
     else:
         register_user(user_id, username)
@@ -201,24 +201,27 @@ async def request_key_name(update: Update, context: CallbackContext):
     await update.callback_query.message.reply_text("Masukkan nama kunci yang ingin Anda pinjam:")
 
 
-async def forward_key_request(update: Update, context: CallbackContext):
+async def forward_chat_request(update: Update, context: CallbackContext):
     user_id = update.message.from_user.id
     username = update.message.from_user.username
     key_name = update.message.text
-    validasi = isKeysOdcAvailable(key_name)
+    if update.message.text.split('-')[0] == 'ODC':
+        validasi = isKeysOdcAvailable(key_name)
 
-    if validasi is not None and validasi['is_key_available'] == 1:
-        keyboard = [
-        [InlineKeyboardButton("Approve", callback_data=f"borrow_approve_{user_id}_{key_name}")],
-        [InlineKeyboardButton("Reject", callback_data=f"borrow_reject_{user_id}_{key_name}")]
-        ]
+        if validasi is not None and validasi['is_key_available'] == 1:
+            keyboard = [
+            [InlineKeyboardButton("Approve", callback_data=f"borrow_approve_{user_id}_{key_name}")],
+            [InlineKeyboardButton("Reject", callback_data=f"borrow_reject_{user_id}_{key_name}")]
+            ]
 
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        await context.bot.send_message(chat_id='5168019992', text=f"Request peminjaman kunci:\nUser: @{username}\nKunci: {key_name}\nPlease approve or reject this request.", reply_markup=reply_markup)
-    if validasi is not None and validasi['is_key_available'] == 0:
-        await context.bot.send_message(chat_id=user_id, text=f"Permintaan peminjaman kunci '{key_name}' telah digunakan orang lain")
-    if validasi is None: 
-        await context.bot.send_message(chat_id=user_id, text=f"Kunci dengan code '{key_name}' tidak ditemukan")
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            await context.bot.send_message(chat_id='5168019992', text=f"Request peminjaman kunci:\nUser: @{username}\nKunci: {key_name}\nPlease approve or reject this request.", reply_markup=reply_markup)
+        if validasi is not None and validasi['is_key_available'] == 0:
+            await context.bot.send_message(chat_id=user_id, text=f"Permintaan peminjaman kunci '{key_name}' telah digunakan orang lain")
+        if validasi is None: 
+            await context.bot.send_message(chat_id=user_id, text=f"Kunci dengan code '{key_name}' tidak ditemukan")
+    else:
+        print(update.message.text)
 
 
 async def handle_borrow_approval(update: Update, context: CallbackContext):
@@ -246,10 +249,18 @@ async def returnKeys_callback(update: Update, context: CallbackContext):
     reply_markup = InlineKeyboardMarkup(keyboard)
     await update.message.reply_text("", reply_markup=reply_markup) 
 
-async def handle_returnKeys(update: Update, context: CallbackContext):
-    print(update)
+async def handle_returnKeyLogbook(update: Update, context: CallbackContext):
+    user_id = update.callback_query.from_user.id
+    isUserborrow = isUserBorrowed(user_id)
+    data = isKeysOdcAvailable(data_id=isUserborrow[1])
+    print(data)
+    keyboard = [
+            [InlineKeyboardButton("Setujui dan lengkapi", callback_data=f"Logbook")],
+        ]
 
-
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await context.bot.send_message(chat_id=user_id, text=f"*Tatacara pengembalian* :\n\n1. Informasikan kegiatan yang anda lakukan di {data['Nama']} :\n2. Upload Foto Kondisi ODC sebelum pekerjaan (*tampak dalam*)\n3. Upload Foto Kondisi ODC setelah pekerjaan (*tampak dalam*)\n4. Upload Foto Kondisi ODC telah tertutup dan terkunci kembali (*tampak depan*)", parse_mode='markdown',reply_markup=reply_markup)
+    
 async def button(update: Update, context: CallbackContext):
     query = update.callback_query
     await query.answer()
@@ -268,12 +279,16 @@ async def button(update: Update, context: CallbackContext):
         await request_key_name(update,context)
     elif query.data.startswith('borrow'):
         await handle_borrow_approval(update, context)
+    elif query.data == 'return_keys':
+        await handle_returnKeyLogbook(update, context)
+    # elif query.data == 'Logbook':
+
 
 def main():
     application = Application.builder().token("7367838125:AAGFZMDYE0le6VjZtlqzzLiECjWCT12rDFA").build()
 
     application.add_handler(CommandHandler("start", start))
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, forward_key_request))
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, forward_chat_request))
     application.add_handler(CallbackQueryHandler(button))
 
     application.run_polling()
