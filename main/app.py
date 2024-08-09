@@ -84,6 +84,13 @@ def update_registration_status(user_id, status):
         close_connection(connection)
 
 def borrow_key(user_id, key_name, key_id):
+    borrowed_count = get_borrowed_key_count(user_id)
+    pending_requests_count = get_pending_borrow_requests(user_id)
+    
+    if borrowed_count + pending_requests_count >= 3:
+        print(f"User {user_id} has reached the maximum borrowing limit.")
+        return False
+
     connection = create_connection()
     if connection is None:
         print("Failed to create database connection.")
@@ -100,6 +107,76 @@ def borrow_key(user_id, key_name, key_id):
         return False
     finally:
         close_connection(connection)
+
+def Update_user_quantity(user_id, kapasitas_peminjaman):
+
+    connection = create_connection()
+    if connection is None:
+        print("Failed to create database connection.")
+        return False
+    cursor = connection.cursor()
+    try:
+        cursor.execute("UPDATE users SET kapasitas_peminjaman = %s WHERE user_id = %s", (kapasitas_peminjaman, user_id ))
+        connection.commit()
+        return True
+    except Error as e:
+        print(f"Error: {e}")
+        return False
+    finally:
+        close_connection(connection)
+
+def cek_user_kapasitas(user_id):
+    connection = create_connection()
+    if connection is None:
+        print("Failed to create database connection.")
+        return False
+    cursor = connection.cursor()
+    try:
+        cursor.execute("SELECT * FROM users WHERE user_id = %s", (user_id,))
+        # Tidak perlu commit jika hanya melakukan query
+        results = cursor.fetchone()  # Mengambil hasil query\
+        return results
+    except Error as e:
+        print(f"Error: {e}")
+        return False
+    finally:
+        close_connection(connection)
+
+    
+
+def get_borrowed_key_count(user_id):
+    connection = create_connection()
+    if connection is None:
+        print("Failed to create database connection.")
+        return 0
+    cursor = connection.cursor()
+    try:
+        cursor.execute("SELECT COUNT(*) FROM borrowed_keys WHERE user_id = %s AND is_return = 0", (user_id,))
+        count = cursor.fetchone()[0]
+        return count
+    except Error as e:
+        print(f"Error: {e}")
+        return 0
+    finally:
+        close_connection(connection)
+
+def get_pending_borrow_requests(user_id):
+    connection = create_connection()
+    if connection is None:
+        print("Failed to create database connection.")
+        return 0
+    cursor = connection.cursor()
+    try:
+        cursor.execute("SELECT COUNT(*) FROM borrowed_keys WHERE user_id = %s AND is_return = 0 AND keys_returned IS NULL", (user_id,))
+        count = cursor.fetchone()[0]
+        return count
+    except Error as e:
+        print(f"Error: {e}")
+        return 0
+    finally:
+        close_connection(connection)
+
+
 
 def isUserBorrowed(user_id):
     print('isUserBorrowed section')
@@ -118,17 +195,17 @@ def isUserBorrowed(user_id):
     finally:
         close_connection(connection)
 
+
 async def start(update: Update, context: CallbackContext):
     user_id = update.message.from_user.id
     username = update.message.from_user.username
     data = get_user_by_id(user_id)
     isUserborrow = isUserBorrowed(user_id)
-    print(f"status peminjaman kunci user : {isUserborrow[-1]}")
     print(f"id {user_id} melakukan start")
     print(data) 
-
-    if isUserborrow[-1] == 0:
-        keyboard = [
+    if isUserborrow is not None:
+        if isUserborrow[-1] == 0:
+            keyboard = [
         [InlineKeyboardButton("Kembalikan Kunci", callback_data='return_keys')],
         ]
     elif data is not None and data['is_registered'] == 1:
@@ -163,7 +240,7 @@ async def register_callback(update: Update, context: CallbackContext):
         ]
     
     reply_markup = InlineKeyboardMarkup(keyboard)
-    await context.bot.send_message(chat_id='5168019992', text=f"New users come and ask for a registration request:\nUser: @{query.from_user.username}\nPlease approve or reject this request.", reply_markup=reply_markup)
+    await context.bot.send_message(chat_id='6305589030', text=f"New users come and ask for a registration request:\nUser: @{query.from_user.username}\nPlease approve or reject this request.", reply_markup=reply_markup)
 
 async def handle_registration(update: Update, context: CallbackContext):
     _, id_register, validasi = update.callback_query.data.split("_")
@@ -186,7 +263,7 @@ async def notify_callback(update: Update , context: CallbackContext):
         ]
     
     reply_markup = InlineKeyboardMarkup(keyboard)
-    await context.bot.send_message(chat_id='5168019992', text=f"new users need to be approved for teh access:\nUser: @{query.from_user.username}\nPlease approve or reject this request.", reply_markup=reply_markup)
+    await context.bot.send_message(chat_id='6305589030', text=f"new users need to be approved for teh access:\nUser: @{query.from_user.username}\nPlease approve or reject this request.", reply_markup=reply_markup)
 
 async def handle_notify(update: Update, context: CallbackContext):
     _, __, validasi , id_register = update.callback_query.data.split("_")
@@ -197,6 +274,18 @@ async def handle_notify(update: Update, context: CallbackContext):
     else:
         await context.bot.send_message(chat_id=id_register, text=f"Permintaan anda ditolak")
 
+async def request_key_quantity(update: Update, context: CallbackContext):
+    keyboard = [
+        [InlineKeyboardButton("1", callback_data='key_quantity_1')],
+        [InlineKeyboardButton("2", callback_data='key_quantity_2')],
+        [InlineKeyboardButton("3", callback_data='key_quantity_3')],
+        # Tambahkan jumlah sesuai kebutuhan
+    ]
+    
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await update.callback_query.message.reply_text("Pilih jumlah kunci yang ingin Anda pinjam:", reply_markup=reply_markup)
+
+
 async def request_key_name(update: Update, context: CallbackContext):
     await update.callback_query.message.reply_text("Masukkan nama kunci yang ingin Anda pinjam:")
 
@@ -205,37 +294,96 @@ async def forward_chat_request(update: Update, context: CallbackContext):
     user_id = update.message.from_user.id
     username = update.message.from_user.username
     key_name = update.message.text
-    if update.message.text.split('-')[0] == 'ODC':
+    
+    user_kapasitas = cek_user_kapasitas(user_id)
+        
+    # kapasitas = int(user_kapasitas[-1]) - 1
+    #         borrow_key(user_id, key_name, dataODC['Data_ID'])
+    #         Update_user_quantity(user_id, kapasitas)
+
+    if key_name.split('-')[0] == 'ODC':
         validasi = isKeysOdcAvailable(key_name)
 
+
         if validasi is not None and validasi['is_key_available'] == 1:
+
+           if user_kapasitas[-1] != 0:
+              
+                kapasitas = int(user_kapasitas[-1]) - 1
+                borrow_key(user_id, key_name, dataODC['Data_ID'])
+                Update_user_quantity(user_id, kapasitas)     
+            else:
+                await context.bot.send_message(chat_id=user_id, text="Maaf, Anda tidak memiliki Kunci")
             keyboard = [
-            [InlineKeyboardButton("Approve", callback_data=f"borrow_approve_{user_id}_{key_name}")],
-            [InlineKeyboardButton("Reject", callback_data=f"borrow_reject_{user_id}_{key_name}")]
+                [InlineKeyboardButton("Approve", callback_data=f"borrow_approve_{user_id}_{key_name}")],
+                [InlineKeyboardButton("Reject", callback_data=f"borrow_reject_{user_id}_{key_name}")]
             ]
 
             reply_markup = InlineKeyboardMarkup(keyboard)
-            await context.bot.send_message(chat_id='5168019992', text=f"Request peminjaman kunci:\nUser: @{username}\nKunci: {key_name}\nPlease approve or reject this request.", reply_markup=reply_markup)
-        if validasi is not None and validasi['is_key_available'] == 0:
-            await context.bot.send_message(chat_id=user_id, text=f"Permintaan peminjaman kunci '{key_name}' telah digunakan orang lain")
-        if validasi is None: 
-            await context.bot.send_message(chat_id=user_id, text=f"Kunci dengan code '{key_name}' tidak ditemukan")
+            await context.bot.send_message(
+                chat_id='6305589030', 
+                text=f"Request peminjaman kunci:\nUser: @{username}\nKunci: {key_name}\nPlease approve or reject this request.", 
+                reply_markup=reply_markup
+            )
+        elif validasi is not None and validasi['is_key_available'] == 0:
+            await context.bot.send_message(
+                chat_id=user_id, 
+                text=f"Permintaan peminjaman kunci '{key_name}' telah digunakan orang lain."
+            )
+        else:
+            await context.bot.send_message(
+                chat_id=user_id, 
+                text=f"Kunci dengan code '{key_name}' tidak ditemukan."
+            )
     else:
         print(update.message.text)
 
-
+ #update nk kene cok
 async def handle_borrow_approval(update: Update, context: CallbackContext):
     query = update.callback_query
     await query.answer()
     _, action, user_id, key_name = query.data.split("_")
-    dataODC = isKeysOdcAvailable(key_name)
+    dataODC = isKeysOdcAvailable(key_name) 
+    user_kapasitas = cek_user_kapasitas(user_id)
+    print(user_kapasitas[-1])
 
-    if action == "approve":
-        borrow_key(user_id, key_name,dataODC['Data_ID'])
-        await context.bot.send_message(chat_id=user_id, text=f"*Keterangan*:\n\nStatus Peminjaman: *Approve*\nODC Name: *{key_name}*\nLocation: [Google Maps](https://www.google.com/maps?q={dataODC['Latitude']},{dataODC['Longitude']})\n\nHarap ambil kunci anda pada Team Leader Region",parse_mode='markdown')
+    if user_kapasitas[-1] != 0:
+
+        if action == "approve":
+            kapasitas = int(user_kapasitas[-1]) - 1
+            borrow_key(user_id, key_name, dataODC['Data_ID'])
+            Update_user_quantity(user_id, kapasitas)
+            await context.bot.send_message(
+                chat_id=user_id, 
+                text=f"*Keterangan*:\n\nStatus Peminjaman: *Approve*\nODC Name: *{key_name}*\nLocation: [Google Maps](https://www.google.com/maps?q={dataODC['Latitude']},{dataODC['Longitude']})\n\nHarap ambil kunci anda pada Team Leader Region", 
+                parse_mode='markdown')
+        else:
+             await context.bot.send_message(
+                chat_id=user_id, 
+                text=f"Peminjaman ditolak", 
+                parse_mode='markdown')
     else:
-        await context.bot.send_message(chat_id=user_id, text=f"Permintaan peminjaman kunci {key_name} Anda telah ditolak.")
-
+        await context.bot.send_message(
+                chat_id=user_id, 
+                text=f"Melebihi kapasitas peminjaman", 
+                parse_mode='markdown')
+        
+async def handle_key_quantity_selection(update: Update, context: CallbackContext):
+    print(update)
+    _, __, number = update.callback_query.data.split("_")
+    user_id = update.callback_query.from_user.id
+    
+    if number == "1":
+        Update_user_quantity(user_id, 1)
+        await context.bot.send_message(chat_id=user_id, text=f"Anda memilih 1")
+    elif number == "2":
+        Update_user_quantity(user_id, 2)
+        await context.bot.send_massage(chat_id=user_id, text=f"Anda memilih 2")
+    elif number == "3":
+        Update_user_quantity(user_id, 3)
+        await context.bot.send_message(chat_id=user_id, text=f"Anda memilih 3")
+    else :
+        await context.bot.send_message(chat_id=user_id, text=f"Permintaan anda ditolak!")
 
 async def returnKeys_callback(update: Update, context: CallbackContext):
     query = update.callback_query
@@ -276,22 +424,27 @@ async def button(update: Update, context: CallbackContext):
     elif query.data.split('_')[0] == 'alert':
         await handle_notify(update,context)
     elif query.data == 'keys_borrowed':
-        await request_key_name(update,context)
+        await request_key_quantity(update,context)
     elif query.data.startswith('borrow'):
         await handle_borrow_approval(update, context)
+    elif query.data.startswith('key_quantity'):
+        await handle_key_quantity_selection(update, context)
     elif query.data == 'return_keys':
         await handle_returnKeyLogbook(update, context)
+    elif query.data.split('_')[1] == 'quantity' :
+        await handle_key_quantity_selection(update, context)
     # elif query.data == 'Logbook':
 
-
 def main():
-    application = Application.builder().token("7367838125:AAGFZMDYE0le6VjZtlqzzLiECjWCT12rDFA").build()
+    application = Application.builder().token("7335623016:AAHMeVUUNjMLCAtr8uTnNGA0HTJF3dEsnvs").build()
 
     application.add_handler(CommandHandler("start", start))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, forward_chat_request))
     application.add_handler(CallbackQueryHandler(button))
 
     application.run_polling()
+
+
 
 if __name__ == '__main__':
     main()
