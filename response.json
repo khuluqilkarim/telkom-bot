@@ -1,0 +1,176 @@
+{
+    "$class": "FetchResourcesResult",
+    "hasMore": false,
+    "items": [
+        {
+            "$class": "ResourceInfo",
+            "actionsAllowed": {
+                "$class": "AllowedActions",
+                "_delete": true,
+                "allowChangePassphrase": false,
+                "allowFoldersFilesPermanentDelete": false,
+                "allowShowDeleted": true,
+                "copy": true,
+                "createFile": false,
+                "createFolder": false,
+                "createPublicLink": true,
+                "deletePermanently": false,
+                "download": true,
+                "invitePermissions": {
+                    "$class": "PublicSharePermissions",
+                    "allowedAccess": "ReadOnly",
+                    "invitationSettings": {
+                        "$class": "PortalInvitationSettings",
+                        "allowCollaboratorsToReshareContent": true,
+                        "allowedFrequentContactsTime": 120,
+                        "defaultProtectionLevels": "publicLink",
+                        "inviteLifetime": 30,
+                        "protectionLevels": [
+                            "publicLink",
+                            "email"
+                        ],
+                        "trustBrowserSupported": true
+                    }
+                },
+                "leaveShare": false,
+                "manageSharing": true,
+                "mobileUploadsEnabled": true,
+                "move": true,
+                "permalink": true,
+                "previewStatus": {
+                    "$class": "PreviewStatus",
+                    "failure": "NoPreviewServer",
+                    "preview": false
+                },
+                "requestTeamProject": false,
+                "restoreCloudDrive": false,
+                "restoreFromBackup": false,
+                "seedingExport": false,
+                "shouldPreVerify": false,
+                "undelete": false,
+                "versioning": true
+            },
+            "cloudFolderInfo": {
+                "$class": "CloudFolderInfo",
+                "groupUid": 10,
+                "isShared": false,
+                "name": "Layout-odc",
+                "ownerFriendlyName": "Audy Pristikasari 940454",
+                "ownerUid": 78978,
+                "passphraseProtected": false,
+                "type": "Personal",
+                "uid": 79128
+            },
+            "extension": "XLSX",
+            "hasLinks": false,
+            "href": "/ServicesPortal/webdav/Layout-odc/labeled_normal.xlsx",
+            "isAttachmentsFolder": false,
+            "isCompleted": true,
+            "isDeleted": false,
+            "isFolder": false,
+            "isInEdit": false,
+            "isShared": false,
+            "lastActionBy": {
+                "$class": "ResourceRevision",
+                "action": "Create",
+                "user": "Audy Pristikasari 940454"
+            },
+            "lastmodified": "2024-08-21T13:29:04",
+            "name": "labeled_normal.xlsx",
+            "permalink": "https://telkom.dropup.id/p/ce11KEmEegv9ULr7xcrKuQueMVyZbpe0F9zs7NSveRhdu+QedNav0r5Y+e70IRSKm3",
+            "permission": "ReadWrite",
+            "quota": 0,
+            "scope": "InsideCloudFolder",
+            "size": 112066
+        }
+    ],
+    "limitReached": false,
+    "root": {
+        "$class": "ResourceInfo",
+        "actionsAllowed": {
+            "$class": "AllowedActions",
+            "_delete": true,
+            "allowChangePassphrase": false,
+            "allowFoldersFilesPermanentDelete": false,
+            "allowShowDeleted": true,
+            "copy": true,
+            "createFile": true,
+            "createFolder": true,
+            "createPublicLink": true,
+            "deletePermanently": false,
+            "download": true,
+            "invitePermissions": {
+                "$class": "PublicSharePermissions",
+                "allowedAccess": "ReadWrite",
+                "invitationSettings": {
+                    "$class": "PortalInvitationSettings",
+                    "allowCollaboratorsToReshareContent": true,
+                    "allowedFrequentContactsTime": 120,
+                    "defaultProtectionLevels": "publicLink",
+                    "inviteLifetime": 30,
+                    "protectionLevels": [
+                        "publicLink",
+                        "email"
+                    ],
+                    "trustBrowserSupported": true
+                }
+            },
+            "leaveShare": false,
+            "manageSharing": true,
+            "mobileUploadsEnabled": true,
+            "move": true,
+            "permalink": false,
+            "previewStatus": {
+                "$class": "PreviewStatus",
+                "failure": "NoPreviewServer",
+                "preview": false
+            },
+            "requestTeamProject": false,
+            "restoreCloudDrive": false,
+            "restoreFromBackup": false,
+            "seedingExport": false,
+            "shouldPreVerify": false,
+            "undelete": false,
+            "versioning": true
+        },
+        "cloudFolderInfo": {
+            "$class": "CloudFolderInfo",
+            "groupUid": 10,
+            "isShared": false,
+            "name": "Layout-odc",
+            "ownerFriendlyName": "Audy Pristikasari 940454",
+            "ownerUid": 78978,
+            "passphraseProtected": false,
+            "type": "Personal",
+            "uid": 79128
+        },
+        "currentSnapshotResp": {
+            "$class": "SnapshotResp",
+            "calculatedTimestamp": "2024-08-21T13:30:36",
+            "current": true,
+            "path": "",
+            "startTimestamp": "2024-08-21T13:25:18",
+            "url": "/ServicesPortal/webdav/Layout-odc"
+        },
+        "hasLinks": false,
+        "href": "/ServicesPortal/webdav/Layout-odc",
+        "isAttachmentsFolder": false,
+        "isCompleted": true,
+        "isDeleted": false,
+        "isFolder": true,
+        "isInEdit": false,
+        "isShared": false,
+        "name": "Layout-odc",
+        "permission": "ReadWrite",
+        "scope": "Personal",
+        "size": 192840,
+        "snapshotResp": {
+            "$class": "SnapshotResp",
+            "calculatedTimestamp": "2024-08-21T13:30:36",
+            "current": true,
+            "path": "",
+            "startTimestamp": "2024-08-21T13:25:18",
+            "url": "/ServicesPortal/webdav/Layout-odc"
+        }
+    }
+}

@@ -1,0 +1,94 @@
+{
+    "$class": "FetchResourcesResult",
+    "hasMore": false,
+    "items": [],
+    "limitReached": false,
+    "root": {
+        "$class": "ResourceInfo",
+        "actionsAllowed": {
+            "$class": "AllowedActions",
+            "_delete": true,
+            "allowChangePassphrase": false,
+            "allowFoldersFilesPermanentDelete": false,
+            "allowShowDeleted": true,
+            "copy": true,
+            "createFile": true,
+            "createFolder": true,
+            "createPublicLink": true,
+            "deletePermanently": false,
+            "download": true,
+            "invitePermissions": {
+                "$class": "PublicSharePermissions",
+                "allowedAccess": "ReadWrite",
+                "invitationSettings": {
+                    "$class": "PortalInvitationSettings",
+                    "allowCollaboratorsToReshareContent": true,
+                    "allowedFrequentContactsTime": 120,
+                    "defaultProtectionLevels": "publicLink",
+                    "inviteLifetime": 30,
+                    "protectionLevels": [
+                        "publicLink",
+                        "email"
+                    ],
+                    "trustBrowserSupported": true
+                }
+            },
+            "leaveShare": false,
+            "manageSharing": true,
+            "mobileUploadsEnabled": true,
+            "move": true,
+            "permalink": false,
+            "previewStatus": {
+                "$class": "PreviewStatus",
+                "failure": "NoPreviewServer",
+                "preview": false
+            },
+            "requestTeamProject": false,
+            "restoreCloudDrive": false,
+            "restoreFromBackup": false,
+            "seedingExport": false,
+            "shouldPreVerify": false,
+            "undelete": false,
+            "versioning": true
+        },
+        "cloudFolderInfo": {
+            "$class": "CloudFolderInfo",
+            "groupUid": 10,
+            "isShared": false,
+            "name": "Layout-odc",
+            "ownerFriendlyName": "Audy Pristikasari 940454",
+            "ownerUid": 78978,
+            "passphraseProtected": false,
+            "type": "Personal",
+            "uid": 79128
+        },
+        "currentSnapshotResp": {
+            "$class": "SnapshotResp",
+            "calculatedTimestamp": "2024-08-21T13:35:51",
+            "current": true,
+            "path": "",
+            "startTimestamp": "2024-08-21T13:35:51",
+            "url": "/ServicesPortal/webdav/Layout-odc"
+        },
+        "hasLinks": false,
+        "href": "/ServicesPortal/webdav/Layout-odc",
+        "isAttachmentsFolder": false,
+        "isCompleted": true,
+        "isDeleted": false,
+        "isFolder": true,
+        "isInEdit": false,
+        "isShared": false,
+        "name": "Layout-odc",
+        "permission": "ReadWrite",
+        "scope": "Personal",
+        "size": 80774,
+        "snapshotResp": {
+            "$class": "SnapshotResp",
+            "calculatedTimestamp": "2024-08-21T13:35:51",
+            "current": true,
+            "path": "",
+            "startTimestamp": "2024-08-21T13:35:51",
+            "url": "/ServicesPortal/webdav/Layout-odc"
+        }
+    }
+}
