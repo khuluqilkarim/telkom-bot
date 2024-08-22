@@ -1,242 +1,16 @@
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackContext, CallbackQueryHandler, filters, MessageHandler
 from telegram import InputMediaPhoto
-import mysql.connector
-from mysql.connector import Error
-from datetime import datetime
+
 import os
 import json
 import random
 import string
+from datetime import datetime
+
+from helper.database import get_user_by_id, getLogBook, isKeysOdcAvailable, register_user, update_registration_status, borrow_key, return_key, finishReturning, insert_logbook, Update_logbook, isUserBorrowed
 
 user_submissions = {}
-
-db_config = {
-    'user': 'ama',
-    'password': '',
-    'host': 'localhost',
-    'database': 'odc_keys_witel_jember'
-}
-
-def create_connection():
-    connection = None
-    try:
-        connection = mysql.connector.connect(**db_config)
-        print(f"\033[93mDEBUG \033[96mcreate_connection\033[0m func :: \033[92msuccess\033[0m")
-
-    except Error as e:
-        print(f"\033[91mError \033[96mcreate_connection\033[0m func :: {e}")
-    return connection
-
-def close_connection(connection):
-    print(f"\033[93mDEBUG \033[96mclose_connection\033[0m func :: \033[92msuccess\033[0m")
-
-    if connection.is_connected():
-        connection.close()
-
-def get_user_by_id(user_id):
-    connection = create_connection()
-    if connection is None:
-        print("Failed to create database connection.")
-        return None
-    cursor = connection.cursor(dictionary=True)
-    try:
-        cursor.execute("SELECT * FROM users WHERE user_id = %s", (user_id,))
-        user = cursor.fetchone()
-        print(f"\033[93mDEBUG \033[96mget_user_by_id\033[0m func :: \033[92msuccess\033[0m")
-        return user
-    except Error as e:
-        print(f"\033[91mError \033[96mget_user_by_id\033[0m func :: {e}")
-        return None
-    finally:
-        close_connection(connection)
-
-def getLogBook(randID, user_id):
-    connection = create_connection()
-    if connection is None:
-        print("Failed to create database connection.")
-        return None
-    cursor = connection.cursor(dictionary=True)
-    try:
-        cursor.execute("SELECT * FROM logbook_submissions WHERE user_id = %s AND id = %s", (user_id, randID))
-        user = cursor.fetchone()
-        print(f"\033[93mDEBUG \033[96mgetLogBook\033[0m func :: \033[92msuccess\033[0m")
-        return user
-    except Error as e:
-        print(f"\033[91mError \033[96mgetLogBook\033[0m func :: {e}")
-        return None
-    finally:
-        close_connection(connection)
-
-def isKeysOdcAvailable(odc_name='', data_id=''):
-    connection = create_connection()
-    if connection is None:
-        print("Failed to create database connection.")
-        return None
-    cursor = connection.cursor(dictionary=True)
-    try:
-        cursor.execute("SELECT * FROM odc_info WHERE Nama = %s OR Data_ID = %s", (odc_name,data_id))
-        user = cursor.fetchone()
-        print(f"\033[93mDEBUG \033[96misKeysOdcAvailable\033[0m func :: \033[92msuccess\033[0m")
-        return user
-    except Error as e:
-        print(f"\033[91mError \033[96misKeysOdcAvailable\033[0m func :: {e}")
-        return None
-    finally:
-        close_connection(connection)
-
-def register_user(user_id, username):
-    connection = create_connection()
-    cursor = connection.cursor()
-    try:
-        cursor.execute("INSERT INTO users (user_id, username, is_registered) VALUES (%s, %s, %s)",
-                       (user_id, username, False))
-        connection.commit()
-        print(f"\033[93mDEBUG \033[96mregister_user\033[0m func :: \033[92msuccess\033[0m")
-
-    except Error as e:
-        print(f"\033[91mError \033[96mregister_user\033[0m func :: {e}")
-    finally:
-        close_connection(connection)
-
-def update_registration_status(user_id, status):
-    print(f"status : {status}\nUser id : {user_id}")
-    connection = create_connection()
-    if connection is None:
-        print("Failed to create database connection.")
-        return
-    cursor = connection.cursor()
-    try:
-        cursor.execute("UPDATE users SET is_registered = %s WHERE user_id = %s", (status, user_id))
-        connection.commit()
-        print(f"\033[93mDEBUG \033[96mupdate_registration_status\033[0m func :: \033[92msuccess\033[0m")
-    except Error as e:
-        print(f"\033[91mError \033[96mupdate_registration_status\033[0m func :: {e}")
-    finally:
-        close_connection(connection)
-
-def borrow_key(user_id, key_name, key_id, randID):
-    connection = create_connection()
-    if connection is None:
-        print("Failed to create database connection.")
-        return False
-    cursor = connection.cursor()
-    try:
-        cursor.execute("UPDATE odc_info SET is_key_available = 0 WHERE Nama = %s", (key_name,))
-        cursor.execute("INSERT INTO borrowed_keys (id, key_id, user_id, time_borrowed, keys_returned, is_return) VALUES (%s, %s, %s, current_timestamp(), NULL, '0')", (randID,key_id, user_id))
-        cursor.execute("INSERT INTO logbook_submissions (id, user_id, Nama_ODC, is_approve) VALUES (%s, %s, %s, 0)",(randID, user_id, key_name))
-
-        connection.commit()
-        print(f"\033[93mDEBUG \033[96mborrow_key\033[0m func :: User {user_id} borrowed key {key_name} successfully")
-        return True
-    except Error as e:
-        print(f"\033[91mError \033[96mborrow_key\033[0m func :: {e}")
-        return False
-    finally:
-        close_connection(connection)
-
-def return_key(user_id, key_name):
-    now = datetime.now()
-    time_format = now.strftime("%Y-%m-%d %H:%M:%S")
-    connection = create_connection()
-    if connection is None:
-        print("Failed to create database connection.")
-        return False
-    cursor = connection.cursor()
-    try:
-        cursor.execute("UPDATE odc_info SET is_key_available = 1 WHERE Nama = %s", (key_name,))
-        cursor.execute("UPDATE logbook_submissions SET is_approve = 1 WHERE user_id = %s AND Nama_ODC = %s",(user_id,key_name))
-        connection.commit()
-        print(f"\033[93mDEBUG \033[96mreturn_key\033[0m func :: \033[92msuccess\033[0m")
-        return True
-    except Error as e:
-        print(f"\033[91mError \033[96mreturn_key\033[0m func :: {e}")
-        return False
-    finally:
-        close_connection(connection)
-
-def finishReturning(user_id, key_id, randID):
-    now = datetime.now()
-    time_format = now.strftime("%Y-%m-%d %H:%M:%S")
-    connection = create_connection()
-    if connection is None:
-        print("Failed to create database connection.")
-        return False
-    cursor = connection.cursor()
-    try:
-        cursor.execute("UPDATE borrowed_keys SET keys_returned = %s, is_return = 1 WHERE user_id  = %s AND key_id = %s AND id = %s",(time_format, user_id, key_id, randID))
-        connection.commit()
-        print(f"\033[93mDEBUG \033[96mreturn_key\033[0m func :: \033[92msuccess\033[0m")
-        return True
-    except Error as e:
-        print(f"\033[91mError \033[96mreturn_key\033[0m func :: {e}")
-        return False
-    finally:
-        close_connection(connection)
-
-def insert_logbook(user_id, key_name, message, randID):
-    connection = create_connection()
-    if connection is None:
-        print("Failed to create database connection.")
-        return False
-    cursor = connection.cursor()
-    try:
-        cursor.execute("INSERT INTO logbook_submissions (id, user_id, message, timestamp, Nama_ODC, is_approve) VALUES (%s, %s, %s, current_timestamp(), %s, 0)",(randID, user_id, message, key_name))
-        connection.commit()
-        print(f"\033[93mDEBUG \033[96minsert_logbook\033[0m func :: \033[92msuccessfull\033[0m")
-        return True
-    except Error as e:
-        print(f"\033[91mError \033[96minsert_logbook\033[0m func :: {e}")
-        return False
-    finally:
-        close_connection(connection)
-
-def Update_logbook(message, randID):
-    connection = create_connection()
-    if connection is None:
-        print("Failed to create database connection.")
-        return False
-    cursor = connection.cursor()
-    try:
-        cursor.execute("UPDATE logbook_submissions SET message = %s, timestamp = current_timestamp() WHERE id = %s",( message, randID))
-        connection.commit()
-        print(f"\033[93mDEBUG \033[96minsert_logbook\033[0m func :: \033[92msuccessfull\033[0m")
-        return True
-    except Error as e:
-        print(f"\033[91mError \033[96minsert_logbook\033[0m func :: {e}")
-        return False
-    finally:
-        close_connection(connection)
-
-def isUserBorrowed(user_id):
-    connection = create_connection()
-    if connection is None:
-        print("Failed to create database connection.")
-        return None
-    cursor = connection.cursor()
-    try:
-        cursor.execute("SELECT * FROM borrowed_keys WHERE user_id = %s and is_return = 0", (user_id,))
-        user = cursor.fetchone()
-        if user:
-            user_dict = {
-                'id': user[0], 
-                'key_id': user[1],
-                'user_id': user[2],
-                'time_borrowed': user[3].strftime('%Y-%m-%d %H:%M:%S') if isinstance(user[3], datetime) else user[3],
-                'keys_returned': user[4],
-                'is_returned': user[5],
-            }
-            user_json = json.dumps(user_dict)
-            print(f"\033[93mDEBUG \033[96misUserBorrowed\033[0m func :: \033[92msuccess\033[0m")
-            return user_json
-        else:
-            print(f"\033[93mDEBUG \033[96misUserBorrowed\033[0m func :: \033[93mno data found\033[0m")
-            return None
-    except Error as e:
-        print(f"\033[91mError \033[96misUserBorrowed\033[0m func :: {e}")
-        return None
-    finally:
-        close_connection(connection)
 
 def createFolder(folder_path):
     if not os.path.exists(folder_path):
@@ -246,13 +20,12 @@ def createFolder(folder_path):
     
     print(f"\033[93mDEBUG \033[96mcreateFolder\033[0m func :: \033[92msuccess\033[0m")
 
-async def downloadFile(file,file_name):
-    try: 
+async def downloadFile(file, file_name):
+    try:
         await file.download_to_drive(file_name)
         print(f"\033[93mDEBUG \033[96mdownloadFile\033[0m func :: \033[92msuccess\033[0m")
-    except Error as e:
+    except Exception as e:  # Catch general exceptions
         print(f"\033[91mError \033[96mdownloadFile\033[0m func :: {e}")
-
 
 def generateID(length=10):
     characters = string.ascii_letters + string.digits
@@ -308,34 +81,86 @@ async def handle_notify(update: Update, context: CallbackContext):
     
     print(f"\033[93mDEBUG \033[96mhandle_notify\033[0m func :: \033[92msuccess\033[0m")
 
-async def request_key_name(update: Update, context: CallbackContext):
-    await update.callback_query.message.reply_text("Untuk melanjutkan proses peminjaman, silakan masukkan nama kunci yang ingin Anda pinjam :")
-    print(f"\033[93mDEBUG \033[96mrequest_key_name\033[0m func :: \033[92msuccess\033[0m")
+async def selectCapacity(update: Update, context: CallbackContext):
+    query = update.callback_query
+    await query.answer()
+    user_id = query.from_user.id
+
+    keyboard = [
+        [InlineKeyboardButton("1", callback_data=f"capacity_1_{user_id}")],
+        [InlineKeyboardButton("2", callback_data=f"capacity_2_{user_id}")],
+        [InlineKeyboardButton("3", callback_data=f"capacity_3_{user_id}")]
+    ]
+
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await context.bot.send_message(chat_id=user_id, text=f"Pilih Berapa jumlah anda ingin meminjam kunci :", reply_markup=reply_markup)
+
+async def handleBorrowCapacity(update: Update, context: CallbackContext):
+    query = update.callback_query
+    await query.answer()
+    _, total, user_id = query.data.split("_")
+
+    if total == '1':
+        user_submissions[int(user_id)]['kapasitas'] = 1
+    elif total == '2':
+        user_submissions[int(user_id)]['kapasitas'] = 2
+    elif total == '3':
+        user_submissions[int(user_id)]['kapasitas'] = 3
+    else: 
+        await context.bot.send_message(chat_id=user_id, text=f"Kapasitas tidak ditemukan")
+
+    await request_key_name(update, context, total)
+
+async def request_key_name(update: Update, context: CallbackContext, total=None):
+    query = update.callback_query
+    await query.answer()
+    if total is not None:
+        await update.callback_query.message.reply_text(f"Anda dapat meminjam {total} kunci, silakan masukkan nama kunci yang ingin Anda pinjam :")
+        print(f"\033[93mDEBUG \033[96mrequest_key_name\033[0m func :: \033[92msuccess\033[0m")
+    else:
+        await update.callback_query.message.reply_text(f"silakan masukkan nama kunci yang ingin Anda cari :")
 
 async def forward_chat_request(update: Update, context: CallbackContext):
     user_id = update.message.from_user.id
     username = update.message.from_user.username
     key_name = update.message.text
 
+    # validasi pada bagian ini untuk melakukan pengecekan setiap tl region 
+
     data = get_user_by_id(user_id)
-    print(data)
 
     if data is None:
         await context.bot.send_message(chat_id=user_id, text=f"Anda belum terdaftar, lakukan /start dan mendaftar")
         return
     elif update.message.text.split('-')[0] == 'ODC':
-        validasi = isKeysOdcAvailable(key_name)
+        validasi = isKeysOdcAvailable(odc_name=key_name)
         randID = user_submissions[user_id]["randID"]
-        if validasi is not None and validasi['is_key_available'] == 1:
+        if validasi is not None and validasi['is_key_available'] == 1 and user_submissions[user_id]['kapasitas'] is not None:
+            userKapasitas = user_submissions[user_id]['kapasitas'] 
+            userKapasitas -= 1 
 
-            keyboard = [
-                [InlineKeyboardButton("Approve", callback_data=f"borrow_approve_{user_id}_{key_name}_{randID}")],
-                [InlineKeyboardButton("Reject", callback_data=f"borrow_reject_{user_id}_{key_name}_{randID}")]
-            ]
+            print(f"{user_submissions[user_id]}")
 
-            reply_markup = InlineKeyboardMarkup(keyboard)
-            await context.bot.send_message(chat_id=user_id, text=f"Permintaan peminjaman kunci {key_name} telah diajukan.")
-            await context.bot.send_message(chat_id='5168019992', text=f"Request peminjaman kunci:\nUser: @{username}\nKunci: {key_name}\nPlease approve or reject this request.", reply_markup=reply_markup)
+            if user_submissions[user_id]['kapasitas'] > 0:
+                user_submissions[user_id]['kapasitas'] = userKapasitas
+                print(f"{user_submissions[user_id]}")
+                keyboard = [
+                    [InlineKeyboardButton("Approve", callback_data=f"borrow_approve_{user_id}_{key_name}_{randID}")],
+                    [InlineKeyboardButton("Reject", callback_data=f"borrow_reject_{user_id}_{key_name}_{randID}")]
+                ]
+
+                reply_markup = InlineKeyboardMarkup(keyboard)
+                await context.bot.send_message(chat_id=user_id, text=f"Permintaan peminjaman kunci {key_name} telah diajukan.")
+                await context.bot.send_message(chat_id=validasi['Lead_Region'], text=f"Request peminjaman kunci:\nUser: @{username}\nKunci: {key_name}\nPlease approve or reject this request.", reply_markup=reply_markup)
+            else:
+                await context.bot.send_message(chat_id=user_id, text=f"Anda melebihi kapasitas peminjaman")
+        else:
+            if validasi['link_layout'] is not None:
+                await context.bot.send_message(
+                    chat_id=user_id, 
+                    text=f"*Keterangan*:\n\nODC Name   : *{key_name}*\nLocation       : [Google Maps](https://www.google.com/maps?q={validasi['Latitude']},{validasi['Longitude']})\nLayout          : [Link PDF]({validasi['link_layout']})\n",
+                    parse_mode='markdown'
+                )
         if validasi is not None and validasi['is_key_available'] == 0:
             await context.bot.send_message(chat_id=user_id, text=f"Permintaan peminjaman kunci {key_name} telah digunakan orang lain")
         if validasi is None: 
@@ -353,8 +178,24 @@ async def handle_borrow_approval(update: Update, context: CallbackContext):
 
     if action == "approve":
         borrow_key(user_id, key_name, dataODC['Data_ID'], randID)
-        await context.bot.send_message(chat_id=user_id, text=f"*Keterangan*:\n\nStatus Peminjaman: *Approve*\nODC Name: *{key_name}*\nLocation: [Google Maps](https://www.google.com/maps?q={dataODC['Latitude']},{dataODC['Longitude']})\n\nSilakan ambil kunci Anda di lokasi yang telah ditentukan oleh Team Leader Region.",parse_mode='markdown')
+        await context.bot.send_message(chat_id=user_id, text=f"*Keterangan*:\n\nStatus Peminjaman: *Approve*\nODC Name: *{key_name}*\nLocation: [📍 Google Maps](https://www.google.com/maps?q={dataODC['Latitude']},{dataODC['Longitude']})\n\nSilakan ambil kunci Anda di lokasi yang telah ditentukan oleh Team Leader Region.",parse_mode='markdown')
+        
+        if user_submissions[int(user_id)]['kapasitas'] < 0: 
+            keyboard = [
+                    [InlineKeyboardButton(f"Kembalikan Kunci {key_name}", callback_data=f"returnKeys_{key_name}")],
+            ]
+
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            await context.bot.send_message(chat_id=user_id,text=
+                f"Ajukan Pengembalian kunci {key_name}. Harap isi logbook dan kembalikan kunci setelah tugas selesai.", 
+                reply_markup=reply_markup
+            )
+            
     else:
+        userKapasitas = user_submissions[int(user_id)]['kapasitas'] 
+        userKapasitas += 1
+        
+        user_submissions[int(user_id)]['kapasitas'] = userKapasitas
         await context.bot.send_message(chat_id=user_id, text=f"Permintaan peminjaman kunci {key_name} Anda telah ditolak.")
     
     print(f"\033[93mDEBUG \033[96mhandle_borrow_approval\033[0m func :: \033[92msuccess\033[0m")
@@ -374,23 +215,19 @@ async def returnKeys_callback(update: Update, context: CallbackContext):
 
 async def handle_returnKeyLogbook(update: Update, context: CallbackContext):
     user_id = update.callback_query.from_user.id
-    _, key_name = update.callback_query.data.split('_')
-
-    isUserborrow_json = isUserBorrowed(user_id)
-    isUserborrow = json.loads(isUserborrow_json)
-
-    data = isKeysOdcAvailable(data_id=int(isUserborrow['key_id']))
+    _, key_name, key_id = update.callback_query.data.split('_')
 
     keyboard = [
-            [InlineKeyboardButton("Setuju dan lengkapi", callback_data=f"Logbook_{key_name}")],
+            [InlineKeyboardButton("Setuju dan lengkapi", callback_data=f"Logbook_{key_name}_{key_id}")],
         ]
-
+    user_submissions[user_id]['pre-logbook'] = key_name
+    print(user_submissions[user_id]['pre-logbook'])
     reply_markup = InlineKeyboardMarkup(keyboard)
-    await context.bot.send_message(chat_id=user_id, text=f"*Tatacara pengembalian* :\n\n1. Informasikan kegiatan yang anda lakukan di {data['Nama']} :\n2. Upload Foto Kondisi ODC sebelum pekerjaan (*tampak dalam*)\n3. Upload Foto Kondisi ODC setelah pekerjaan (*tampak dalam*)\n4. Upload Foto Kondisi ODC telah tertutup dan terkunci kembali (*tampak depan*)", parse_mode='markdown', reply_markup=reply_markup)
+    await context.bot.send_message(chat_id=user_id, text=f"*Tatacara pengembalian* :\n\n1. Informasikan kegiatan yang anda lakukan di {key_name} :\n2. Upload Foto Kondisi ODC sebelum pekerjaan (*tampak dalam*)\n3. Upload Foto Kondisi ODC setelah pekerjaan (*tampak dalam*)\n4. Upload Foto Kondisi ODC telah tertutup dan terkunci kembali (*tampak depan*)", parse_mode='markdown', reply_markup=reply_markup)
     print(f"\033[93mDEBUG \033[96mhandle_returnKeyLogbook\033[0m func :: \033[92msuccess\033[0m ")
 
 async def logbook(update: Update, context: CallbackContext):
-    _, key_name = update.callback_query.data.split('_')
+    _, key_name, key_id = update.callback_query.data.split('_')
     await update.callback_query.message.reply_text(f"Kirim logbook pada peminjaman kunci {key_name} anda :")
     print(f"\033[93mDEBUG \033[96mlogbook\033[0m func :: \033[92msuccess\033[0m")
 
@@ -419,15 +256,15 @@ async def forward_to_team_leader(update: Update, context: CallbackContext, user_
     submission = user_submissions.get(user_id)
     username = get_user_by_id(user_id)['username']
 
-    isUserborrow_json = isUserBorrowed(int(user_id))
-    isUserborrow = json.loads(isUserborrow_json)
-    data_ODC = isKeysOdcAvailable(data_id=isUserborrow['key_id'])
+    odc_name = user_submissions[user_id]["pre-logbook"]
     randID = user_submissions[user_id]["randID"]
+    key_id = isKeysOdcAvailable(odc_name=odc_name)
+
 
     keyboard = [
-            [InlineKeyboardButton("Approve", callback_data=f"keyReturn_approve_{user_id}_{data_ODC['Nama']}_{randID}")],
-            [InlineKeyboardButton("Reject", callback_data=f"keyReturn_reject_{user_id}_{data_ODC['Nama']}_{randID}")]
-            ]
+            [InlineKeyboardButton("Approve", callback_data=f"keyReturn_approve_{user_id}_{odc_name}_{randID}_{key_id['Data_ID']}")],
+            [InlineKeyboardButton("Reject", callback_data=f"keyReturn_reject_{user_id}_{odc_name}_{randID}_{key_id['Data_ID']}")]
+    ]
     reply_markup = InlineKeyboardMarkup(keyboard)
 
     now = datetime.now()
@@ -440,15 +277,15 @@ async def forward_to_team_leader(update: Update, context: CallbackContext, user_
 
         if iskeyreturn is not None:
             Update_logbook(message,randID)
-
-        insert_logbook(user_id,data_ODC['Nama'],message, randID)
+        else:
+            insert_logbook(user_id,odc_name,message, randID)
         
-        text = f"*Logbook* :\nKey : *{data_ODC['Nama']}*\nWaktu : *{now.strftime("%Y-%m-%d %H:%M:%S")}*\n\nPesan :\n{message}"
+        text = f"*Logbook* :\nKey : *{odc_name}*\nWaktu : *{now.strftime("%Y-%m-%d %H:%M:%S")}*\n\nPesan :\n{message}"
 
         try:
             media_group = [InputMediaPhoto(media=photo_id) for photo_id in photos]
-            await context.bot.send_media_group(chat_id='5168019992', media=media_group, caption=text, parse_mode='markdown')
-            await context.bot.send_message(chat_id='5168019992',text=f"Request pengembalian kunci:\nUser: @{username}\nKey : {data_ODC['Nama']}",reply_markup=reply_markup)
+            await context.bot.send_media_group(chat_id=key_id['Lead_Region'], media=media_group, caption=text, parse_mode='markdown')
+            await context.bot.send_message(chat_id=key_id['Lead_Region'],text=f"Request pengembalian kunci:\nUser: @{username}\nKey : {odc_name}",reply_markup=reply_markup)
 
         except Exception as e:
             print(f"\033[91mError \033[96mforward_to_team_leader\033[0m func :: {e}")
@@ -461,7 +298,7 @@ async def handle_returnKey_approval(update: Update, context: CallbackContext):
     query = update.callback_query
     await query.answer()
 
-    _, action, user_id, key_name, randID = query.data.split("_")
+    _, action, user_id, key_name, randID, key_id = query.data.split("_")
     dataODC = isKeysOdcAvailable(key_name)
 
     now = datetime.now()
@@ -482,7 +319,7 @@ async def handle_returnKey_approval(update: Update, context: CallbackContext):
             await downloadFile(data,file_name)
 
         keyboard = [
-            [InlineKeyboardButton("Pengembalian selesai", callback_data=f"USRkeys_{user_id}_{key_name}_{randID}")]
+            [InlineKeyboardButton("Pengembalian selesai", callback_data=f"USRkeys_{user_id}_{key_name}_{randID}_{key_id}")]
             ]
 
         reply_markup = InlineKeyboardMarkup(keyboard)
@@ -491,12 +328,20 @@ async def handle_returnKey_approval(update: Update, context: CallbackContext):
         user_submissions[int(user_id)]['file_photos'] = []
         user_submissions[int(user_id)]['photos'] = []
         user_submissions[int(user_id)]['message'] = None
+        user_submissions[int(user_id)]['pre-logbook'] = None
+        user_submissions[int(user_id)]['kapasitas'] = None
+
+
         print(user_submissions[int(user_id)])
     else:
         await context.bot.send_message(chat_id=user_id, text=f"Logbook ditolak. Harap isi kembali.")
         user_submissions[int(user_id)]['file_photos'] = []
         user_submissions[int(user_id)]['photos'] = []
         user_submissions[int(user_id)]['message'] = None
+        user_submissions[int(user_id)]['pre-logbook'] = None
+        user_submissions[int(user_id)]['kapasitas'] = None
+
+
         print(user_submissions[int(user_id)])
         
         print(f"\033[93mDEBUG \033[96muser_submissions\033[0m data :: \033[92m{user_submissions[int(user_id)]}\033[0m")
@@ -507,42 +352,47 @@ async def handle_finishReturnKeys_approval(update: Update, context: CallbackCont
     query = update.callback_query
     await query.answer()
 
-    _, user_id, key_name, randID = query.data.split("_")
+    _, user_id, key_name, randID, key_id = query.data.split("_")
     data_user = get_user_by_id(user_id)
+    Lead_id = isKeysOdcAvailable(odc_name=key_name)
+
 
     keyboard = [
-            [InlineKeyboardButton("Sudah", callback_data=f"TLkeys_approve_{user_id}_{key_name}_{randID}")],
-            [InlineKeyboardButton("Belum", callback_data=f"TLkeys_reject_{user_id}_{key_name}_{randID}")]
+            [InlineKeyboardButton("Sudah", callback_data=f"TLkeys_approve_{user_id}_{key_name}_{randID}_{key_id}")],
+            [InlineKeyboardButton("Belum", callback_data=f"TLkeys_reject_{user_id}_{key_name}_{randID}_{key_id}")]
         ]
     
     reply_markup = InlineKeyboardMarkup(keyboard)
-    await context.bot.send_message(chat_id='5168019992', text=f"Apakah user ini @{data_user['username']} telah mengembalikan kunci {key_name}?", reply_markup=reply_markup)
+    await context.bot.send_message(chat_id=Lead_id['Lead_Region'], text=f"Apakah user ini @{data_user['username']} telah mengembalikan kunci {key_name}?", reply_markup=reply_markup)
     
 async def finishReturnKeys_callback(update: Update, context: CallbackContext):
     query = update.callback_query
     await query.answer()
 
-    _, action, user_id, key_name, randID = query.data.split("_")
+    _, action, user_id, key_name, randID, key_id = query.data.split("_")
 
     isUserborrow_json = isUserBorrowed(int(user_id))
-    isUserborrow = json.loads(isUserborrow_json)
-    data_ODC = isKeysOdcAvailable(data_id=isUserborrow['key_id'])
+
+    isUserborrow = None
+    if isUserborrow_json is not None:
+        isUserborrow = json.loads(isUserborrow_json)
 
     if action == 'approve':
-        del user_submissions[int(user_id)]
-        finishReturning(user_id,data_ODC['Data_ID'], randID)
+        finishReturning(user_id, key_id, randID)
         await context.bot.send_message(chat_id=user_id, text=f"Terimakasih telah mengembalikan.")
+        if isUserborrow is None:
+            del user_submissions[int(user_id)]
+
     elif action == 'reject':
-        await returningKeysButton(user_id, key_name, context, randID)
+        await returningKeysButton(user_id, key_name, context, randID, key_id)
         
-async def returningKeysButton(user_id, key_name, context, randID):
-    dataODC = isKeysOdcAvailable(key_name)
+async def returningKeysButton(user_id, key_name, context, randID, key_id):
     keyboard = [
-            [InlineKeyboardButton("Pengembalian selesai", callback_data=f"USRkeys_{user_id}_{key_name}_{randID}")]
+            [InlineKeyboardButton("Pengembalian selesai", callback_data=f"USRkeys_{user_id}_{key_name}_{randID}_{key_id}")]
             ]
 
     reply_markup = InlineKeyboardMarkup(keyboard)
-    await context.bot.send_message(chat_id=user_id, text=f"Harap kembalikan kunci {dataODC['Nama']} segera.",reply_markup=reply_markup)
+    await context.bot.send_message(chat_id=user_id, text=f"Harap kembalikan kunci {key_name} segera.",reply_markup=reply_markup)
 
 
 async def button(update: Update, context: CallbackContext):
@@ -560,7 +410,11 @@ async def button(update: Update, context: CallbackContext):
     elif query.data.split('_')[0] == 'alert':
         await handle_notify(update, context)
     elif query.data == 'keys_borrowed':
-        await request_key_name(update,context)
+        await selectCapacity(update,context)
+    elif query.data == 'show_keys':
+        await request_key_name(update, context)
+    elif query.data.split('_')[0] == 'capacity':
+        await handleBorrowCapacity(update, context)
     elif query.data.startswith('borrow'):
         await handle_borrow_approval(update, context)
     elif query.data.split('_')[0] == 'returnKeys':
@@ -583,8 +437,11 @@ async def start(update: Update, context: CallbackContext):
             "photos": [],
             "file_photos": [],
             "message": None,
-            "randID": None
+            "randID": None,
+            "kapasitas": None,
+            "pre-logbook": None
         }
+
     print(f"\n\033[91mDEBUG \033[96muser_submissions\033[0m data is None :: \033[93m{user_submissions[user_id]}\033[0m")
 
     if user_submissions[user_id]["randID"] is None:
@@ -595,37 +452,53 @@ async def start(update: Update, context: CallbackContext):
     data = get_user_by_id(user_id)
     isUserborrow_json = isUserBorrowed(int(user_id))
     iskeyreturn = getLogBook(user_submissions[user_id]['randID'], user_id)
-
-    print(f"iskeyreturn :: {iskeyreturn}")
+    print(f"iskeyreturn start :: {iskeyreturn}")
 
     isUserborrow = None
     if isUserborrow_json is not None:
         try:
             isUserborrow = json.loads(isUserborrow_json)
+            print(isUserborrow)
         except json.JSONDecodeError as e:
             print(f"\033[91mError \033[96misUserBorrowed\033[0m func :: JSON decoding error: {e}")
 
-    print(f"isUserborrow :: {isUserborrow}")
-
     if iskeyreturn is not None and iskeyreturn['is_approve'] == 0:
         if isUserborrow is not None:
-            data_ODC = isKeysOdcAvailable(data_id=int(isUserborrow['key_id']))
-            print(data_ODC)
-            keyboard = [
-                [InlineKeyboardButton(f"Kembalikan Kunci {data_ODC['Nama']}", callback_data=f"returnKeys_{data_ODC['Nama']}")],
-            ]
+            keyboard = []
+            for borrowed_item in isUserborrow:
+                data_ODC = isKeysOdcAvailable(data_id=int(borrowed_item['key_id']))
 
-            reply_markup = InlineKeyboardMarkup(keyboard)
-            await update.message.reply_text(
-                f"Anda meminjam kunci {data_ODC['Nama']}. Harap isi logbook dan kembalikan kunci setelah tugas selesai.", 
-                reply_markup=reply_markup
-            )
+                if data_ODC:
+                    keyboard.append([InlineKeyboardButton(f"Kembalikan Kunci {data_ODC['Nama']}", callback_data=f"returnKeys_{data_ODC['Nama']}_{borrowed_item['key_id']}")])
+
+            if keyboard:
+                reply_markup = InlineKeyboardMarkup(keyboard)
+                await update.message.reply_text(
+                    "Anda meminjam kunci berikut. Harap isi logbook dan kembalikan kunci setelah tugas selesai:", 
+                    reply_markup=reply_markup
+                )
+            else:
+                print("No valid keys found for return.")
         else:
             print("isUserborrow is None, cannot retrieve key data.")
     
-    elif isUserborrow is not None and isUserborrow['is_returned'] == 0:
-        data_ODC = isKeysOdcAvailable(data_id=int(isUserborrow['key_id']))
-        await returningKeysButton(user_id, data_ODC['Nama'], context, user_submissions[user_id]['randID'])
+    elif iskeyreturn is not None and iskeyreturn['is_approve'] == 0:
+        if isUserborrow is not None:
+            for borrowed_item in isUserborrow:
+                if borrowed_item['is_returned'] == 0:
+                    data_ODC = isKeysOdcAvailable(data_id=int(borrowed_item['key_id']))
+                    if data_ODC:
+                        await returningKeysButton(
+                            user_id=user_id,
+                            key_name=data_ODC['Nama'],
+                            context=context,
+                            randID=user_submissions[user_id]['randID'],
+                            key_id=borrowed_item['key_id']
+                        )
+                    else:
+                        print(f"Data ODC tidak tersedia untuk key_id {borrowed_item['key_id']}.")
+        else:
+            print("isUserborrow is None, cannot retrieve key data.")
     
     elif data is not None:
         if data['is_registered'] == 1:
@@ -674,10 +547,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
-# note : 
-
-# - limit peminjaman kunci :
-#     - dikurangi jika meminjam (done)
-#     - ditambah ketika di tolak
-#     - 
